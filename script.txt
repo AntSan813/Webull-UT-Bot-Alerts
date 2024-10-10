@@ -1,0 +1,84 @@
+//@version=4
+study(title="UT Bot Alerts", overlay=true)
+
+// inputs
+a = input(1.0, title="Key Value (Sensitivity)")
+c = input(10, title="ATR Period")
+
+// calculate ATR
+xATR = atr(c)
+nLoss = a * xATR
+
+// Source price
+// TODO: use Signals from Heikin Ashi Candles
+src = close
+
+// compute ATR Trailing Stop
+xATRTrailingStop = 0.0
+xATRTrailingStop := iff(
+    (src > xATRTrailingStop[1]) and (src[1] > xATRTrailingStop[1]),
+    max(xATRTrailingStop[1], src - nLoss),
+    iff(
+        (src < xATRTrailingStop[1]) and (src[1] < xATRTrailingStop[1]),
+        min(xATRTrailingStop[1], src + nLoss),
+        iff(
+            src > xATRTrailingStop[1],
+            src - nLoss,
+            src + nLoss
+        )
+    )
+)
+
+// position tracking
+pos = 0
+pos := iff(
+    (src[1] < xATRTrailingStop[1]) and (src > xATRTrailingStop[1]),
+    1,
+    iff(
+        (src[1] > xATRTrailingStop[1]) and (src < xATRTrailingStop[1]),
+        -1,
+        pos[1]
+    )
+)
+
+// Exponential Moving Average
+emaVal = ema(src, 1)
+
+// calculate crossover 
+above = (emaVal[1] < xATRTrailingStop[1]) and (emaVal > xATRTrailingStop)
+below = (emaVal[1] > xATRTrailingStop[1]) and (emaVal < xATRTrailingStop)
+
+// calculate signals
+buySignal = (src > xATRTrailingStop) and above
+sellSignal = (src < xATRTrailingStop) and below
+
+// plot the ATR Trailing Stop 
+plotATRTrailingStop = plot(
+    xATRTrailingStop,
+    title="ATR Trailing Stop",
+    color=color.gray,
+    linewidth=2
+)
+
+// compute offset for signals
+offset = atr(14) * 0.2
+
+// plot Buy Signals above the candle
+buyPlot = iff(buySignal, high + offset, na)
+plot(
+    buyPlot,
+    title="Buy Signal",
+    color=color.green,
+    style=plot.style_circles,
+    linewidth=2
+)
+
+// plot Sell Signals below the candle
+sellPlot = iff(sellSignal, low - offset, na)
+plot(
+    sellPlot,
+    title="Sell Signal",
+    color=color.red,
+    style=plot.style_circles,
+    linewidth=2
+)
